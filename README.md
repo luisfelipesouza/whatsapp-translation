@@ -48,3 +48,6 @@ $ sam deploy --guided
 * create a "Whatsapp Business Account" webhook and subscribe for "messages"
 * use the Api Gateway Endpoint created by deploy with the path "/whatsapp" as callback URL, e.g.: (https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod/whatsapp)
 * use the word "VERIFY" as Verify token for callback URL.
+
+## Architecture
+![My Image](img/architecture.png)

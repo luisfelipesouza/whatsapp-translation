@@ -1,0 +1,10 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "whatsapp-translation"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-k96ge4a0y335"
+s3_prefix = "whatsapp-translation"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+image_repositories = []

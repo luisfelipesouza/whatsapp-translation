@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: translation whatsapp
+  
+Globals:
+  Function:
+    Runtime: nodejs14.x
+    CodeUri: src/
+    Timeout: 180
+    MemorySize: 128
+    Environment:
+      Variables:
+        FACEBOOK_URL: https://graph.facebook.com/v15.0
+        VAULT: whatsapp
+        SOURCE_LANGUAGE: pt
+        TARGET_LANGUAGE: en
+        POLLY_LANGUAGE: en-US
+        POLLY_VOICE: Salli
+
+Resources:
+  AudioS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: audio-bucket-whatsapp-lfribeiro          
+
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: onboarding-webhook
+      StageName: Prod
+  
+  WebhookCustomerVerify:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: verify.lambdaHandler
+      Events:
+        WebhookEventVerify:
+          Type: Api
+          Properties:
+            Path: /whatsapp
+            Method: GET
+            RestApiId: !Ref ApiGateway
+      Environment:
+        Variables:
+          VERIFY_TOKEN: VERIFY
+
+  ReceiveAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: receive.lambdaHandler
+      Events:
+        WebhookEventEcho:
+          Type: Api
+          Properties:
+            Path: /whatsapp
+            Method: POST
+            RestApiId: !Ref ApiGateway
+      Environment:
+        Variables:
+          AWS_S3_BUCKET_NAME: !Ref AudioS3Bucket
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - translate:TranslateText
+              - secretsmanager:GetSecretValue
+            Resource: '*'
+        - S3CrudPolicy:
+            BucketName: !Ref AudioS3Bucket
+
+  TranscribeAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: transcribe.lambdaHandler
+      Events:
+        TranscribeS3Event:
+          Type: S3
+          Properties:
+            Bucket: 
+              Ref: AudioS3Bucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix      
+                    Value: .ogg 
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - transcribe:StartTranscriptionJob
+              - transcribe:GetTranscriptionJob
+              - s3:*Object
+            Resource: '*'
+  
+  TranslateSpeechAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: translate.lambdaHandler
+      Events:
+        TranslateS3Event:
+          Type: S3
+          Properties:
+            Bucket: 
+              Ref: AudioS3Bucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix      
+                    Value: .json
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - transcribe:GetTranscriptionJob
+              - translate:TranslateText
+              - polly:StartSpeechSynthesisTask
+              - polly:GetSpeechSynthesisTask
+              - s3:*
+            Resource: '*'
+
+  ResponseAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: response.lambdaHandler
+      Events:
+        ResponseS3Event:
+          Type: S3
+          Properties:
+            Bucket: 
+              Ref: AudioS3Bucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix      
+                    Value: .mp3 
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - polly:GetSpeechSynthesisTask
+              - secretsmanager:GetSecretValue
+              - s3:*
+            Resource: '*'
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway orginal endpoint URL"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod"

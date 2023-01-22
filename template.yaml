@@ -10,12 +10,10 @@ Globals:
     MemorySize: 128
     Environment:
       Variables:
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
         FACEBOOK_URL: https://graph.facebook.com/v15.0
         VAULT: whatsapp
-        SOURCE_LANGUAGE: pt
-        TARGET_LANGUAGE: en
-        POLLY_LANGUAGE: en-US
-        POLLY_VOICE: Salli
+        TABLE_NAME: !Ref SetupLanguageTable
 
 Resources:
   AudioS3Bucket:
@@ -67,6 +65,8 @@ Resources:
             Resource: '*'
         - S3CrudPolicy:
             BucketName: !Ref AudioS3Bucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SetupLanguageTable
 
   TranscribeAudioFunction:
     Type: AWS::Serverless::Function
@@ -90,8 +90,10 @@ Resources:
             Action:
               - transcribe:StartTranscriptionJob
               - transcribe:GetTranscriptionJob
-              - s3:*Object
+              - s3:*
             Resource: '*'
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SetupLanguageTable
   
   TranslateSpeechAudioFunction:
     Type: AWS::Serverless::Function
@@ -117,8 +119,11 @@ Resources:
               - translate:TranslateText
               - polly:StartSpeechSynthesisTask
               - polly:GetSpeechSynthesisTask
+              - secretsmanager:GetSecretValue
               - s3:*
             Resource: '*'
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SetupLanguageTable
 
   ResponseAudioFunction:
     Type: AWS::Serverless::Function
@@ -144,6 +149,21 @@ Resources:
               - secretsmanager:GetSecretValue
               - s3:*
             Resource: '*'
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SetupLanguageTable
+        
+  
+  SetupLanguageTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: SETUP_LANGUAGE_TABLE
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: phoneNumber
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phoneNumber
+          KeyType: HASH
 
 Outputs:
   ApiEndpoint:
